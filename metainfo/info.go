@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/anacrolix/missinggo/slices"
+	"github.com/anacrolix/torrent/mem"
 )
 
 // The info dictionary.
@@ -58,7 +59,7 @@ func (info *Info) BuildFromFilePath(root string) (err error) {
 		return strings.Join(l.Path, "/") < strings.Join(r.Path, "/")
 	})
 	err = info.GeneratePieces(func(fi FileInfo) (io.ReadCloser, error) {
-		return os.Open(filepath.Join(root, strings.Join(fi.Path, string(filepath.Separator))))
+		return mem.FS.Open(filepath.Join(root, strings.Join(fi.Path, string(filepath.Separator))))
 	})
 	if err != nil {
 		err = fmt.Errorf("error generating pieces: %s", err)

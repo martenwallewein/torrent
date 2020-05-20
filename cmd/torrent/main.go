@@ -27,6 +27,7 @@ import (
 	"github.com/anacrolix/torrent/storage"
 	humanize "github.com/dustin/go-humanize"
 	"github.com/gosuri/uiprogress"
+
 	// "github.com/netsec-ethz/scion-apps/pkg/appnet"
 	"golang.org/x/time/rate"
 )
@@ -307,7 +308,10 @@ func mainErr() error {
 		progress.Start()
 	}
 	addTorrents(client)
+	start := time.Now()
 	if client.WaitAll() {
+		elapsed := time.Since(start)
+		log.Printf("Binomial took %s", elapsed)
 		log.Print("downloaded ALL the torrents")
 	} else {
 		return xerrors.New("y u no complete torrents?!")

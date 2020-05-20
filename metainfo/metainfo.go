@@ -2,10 +2,10 @@ package metainfo
 
 import (
 	"io"
-	"os"
 	"time"
 
 	"github.com/anacrolix/torrent/bencode"
+	"github.com/anacrolix/torrent/mem"
 )
 
 type MetaInfo struct {
@@ -34,7 +34,7 @@ func Load(r io.Reader) (*MetaInfo, error) {
 
 // Convenience function for loading a MetaInfo from a file.
 func LoadFromFile(filename string) (*MetaInfo, error) {
-	f, err := os.Open(filename)
+	f, err := mem.FS.Open(filename)
 	if err != nil {
 		return nil, err
 	}

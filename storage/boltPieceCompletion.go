@@ -2,12 +2,12 @@ package storage
 
 import (
 	"encoding/binary"
-	"os"
 	"path/filepath"
 	"time"
 
 	bolt "github.com/boltdb/bolt"
 
+	"github.com/anacrolix/torrent/mem"
 	"github.com/anacrolix/torrent/metainfo"
 )
 
@@ -27,7 +27,7 @@ type boltPieceCompletion struct {
 var _ PieceCompletion = (*boltPieceCompletion)(nil)
 
 func NewBoltPieceCompletion(dir string) (ret PieceCompletion, err error) {
-	os.MkdirAll(dir, 0770)
+	mem.FS.MkdirAll(dir, 0770)
 	p := filepath.Join(dir, ".torrent.bolt.db")
 	db, err := bolt.Open(p, 0660, &bolt.Options{
 		Timeout: time.Second,

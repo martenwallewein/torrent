@@ -5,13 +5,13 @@ package dirwatch
 import (
 	"bufio"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/anacrolix/missinggo"
 	"github.com/fsnotify/fsnotify"
 
+	"github.com/anacrolix/torrent/mem"
 	"github.com/anacrolix/torrent/metainfo"
 )
 
@@ -75,7 +75,7 @@ func torrentFileInfoHash(fileName string) (ih metainfo.Hash, ok bool) {
 }
 
 func scanDir(dirName string) (ee map[metainfo.Hash]entity) {
-	d, err := os.Open(dirName)
+	d, err := mem.FS.Open(dirName)
 	if err != nil {
 		log.Print(err)
 		return
@@ -132,7 +132,7 @@ func scanDir(dirName string) (ee map[metainfo.Hash]entity) {
 }
 
 func magnetFileURIs(name string) (uris []string, err error) {
-	f, err := os.Open(name)
+	f, err := mem.FS.Open(name)
 	if err != nil {
 		return
 	}

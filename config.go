@@ -187,7 +187,7 @@ func NewDefaultClientConfig() *ClientConfig {
 		},
 		CryptoSelector: mse.DefaultCryptoSelector,
 		CryptoProvides: mse.AllSupportedCrypto,
-		ListenPort:     42424,
+		ListenPort:     42426,
 		Logger:         log.Default,
 		DisableScion:   true,
 	}

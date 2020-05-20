@@ -6,10 +6,12 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+
 	// "strings"
 
 	// "github.com/scionproto/scion/go/lib/sciond"
 	// "github.com/scionproto/scion/go/lib/spath"
+
 	"github.com/netsec-ethz/scion-apps/pkg/appnet"
 	"github.com/netsec-ethz/scion-apps/pkg/appnet/appquic"
 
@@ -17,6 +19,7 @@ import (
 
 	quic "github.com/lucas-clemente/quic-go"
 	"github.com/scionproto/scion/go/lib/snet"
+
 	// "github.com/scionproto/scion/go/lib/snet/squic"
 
 	"github.com/anacrolix/missinggo"
@@ -63,11 +66,11 @@ type scionSocket struct {
 }
 
 func (s *scionSocket) Accept() (net.Conn, error) {
-	x, err := s.q.Accept()
+	x, err := s.q.Accept(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	conn, err := x.AcceptStream()
+	conn, err := x.AcceptStream(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -98,6 +101,42 @@ func (w *squicStreamWrapper) RemoteAddr() net.Addr {
 	return w.remote()
 }
 
+func (s *scionSocket) dialUDP(ctx context.Context, addr net.Addr) (net.Conn, error) {
+	snetAddr, ok := addr.(*snet.UDPAddr)
+
+	if !ok {
+		return nil, fmt.Errorf("sdial: invalid addr type: %s", addr.String())
+	}
+
+	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+	if err != nil {
+		return nil, err
+	}
+
+	udpConn.SetReadBuffer(425984)
+	udpConn.SetWriteBuffer(425984)
+
+	sAddr, _ := net.ResolveUDPAddr("udp", snetAddr.Host.String())
+	sess, err := quic.DialEarly(udpConn, sAddr, snetAddr.Host.String(), scion_torrent.TLSCfg, &quic.Config{
+		KeepAlive: true,
+	})
+	// sess, err := squic.DialSCION(nil, str, nil, &quic.Config{
+	//	KeepAlive: true,
+	// })
+	if err != nil {
+		return nil, err
+	}
+	conn, err := sess.OpenStreamSync(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	return &squicStreamWrapper{
+		conn,
+		sess.LocalAddr,
+		sess.RemoteAddr,
+	}, nil
+}
+
 func (s *scionSocket) dial(ctx context.Context, addr net.Addr) (net.Conn, error) {
 	/*if err := scion_torrent.InitScion(s.local.IA); err != nil {
 		return nil, err
@@ -117,42 +156,41 @@ func (s *scionSocket) dial(ctx context.Context, addr net.Addr) (net.Conn, error)
 	fmt.Println("SNET ADDRESS:")
 	fmt.Println(snetAddr.String())
 	// Copy the snet addr -> To ensure we won't manipulate the old addr by attaching hops/path
-	//snetAddr := targetAddr.Copy()
-	// str := s.local.String()
-	// front := str[:strings.LastIndex(str, ":")]
-	// newAddr, err := snet.AddrFromString(front)
-	// if err != nil {
-	//	return nil, err
-	//}
+	newAddr := snetAddr.Copy()
 
-	/*if !snetAddr.IA.Equal(newAddr.IA) {
+	if !s.local.IA.Equal(newAddr.IA) {
+
 		// query paths from here to there:
-		pathMgr := snet.DefNetwork.PathResolver()
-		pathSet := pathMgr.Query(context.Background(), newAddr.IA, snetAddr.IA, sciond.PathReqFlags{})
+		pathSet, err := appnet.DefNetwork().PathQuerier.Query(context.Background(), newAddr.IA)
+		if err != nil {
+			return nil, err
+		}
+
 		if len(pathSet) == 0 {
 			return nil, fmt.Errorf("No Paths")
 		}
 		// print all paths. Also pick one path. Here we chose the path with least hops:
 		i := 0
-		minLength, argMinPath := 999, (*sciond.PathReplyEntry)(nil)
+		minLength, argMinPath := 999, (snet.Path)(nil)
 		fmt.Println("Available paths:")
 		for _, path := range pathSet {
-			fmt.Printf("[%2d] %d %s\n", i, len(path.Entry.Path.Interfaces)/2, path.Entry.Path.String())
-			if len(path.Entry.Path.Interfaces) < minLength {
-				minLength = len(path.Entry.Path.Interfaces)
-				argMinPath = path.Entry
+			fmt.Printf("[%2d] %d %s\n", i, len(path.Interfaces())/2, path)
+			if len(path.Interfaces()) < minLength {
+				minLength = len(path.Interfaces())
+				argMinPath = path
 			}
 			i++
 		}
-		fmt.Println("Chosen path:", argMinPath.Path.String())
+		fmt.Println("Chosen path:", argMinPath)
 		// we need to copy the path to the destination (destination is the whole selected path)
-		snetAddr.Path = spath.New(argMinPath.Path.FwdPath)
+		snetAddr.Path = argMinPath.Path()
 		snetAddr.Path.InitOffsets()
-		snetAddr.NextHop, _ = argMinPath.HostInfo.Overlay()
+		snetAddr.NextHop = argMinPath.OverlayNextHop()
 		// get a connection object using that path:
-	}*/
+	}
 	fmt.Println("DIAL ADDR")
-	sess, err := appquic.DialAddr(snetAddr, scion_torrent.TLSCfg, &quic.Config{
+	fmt.Println(addr.String())
+	sess, err := appquic.DialAddrEarly(snetAddr, "127.0.0.1:42425", scion_torrent.TLSCfg, &quic.Config{
 		KeepAlive: true,
 	})
 	// sess, err := squic.DialSCION(nil, str, nil, &quic.Config{
@@ -161,7 +199,7 @@ func (s *scionSocket) dial(ctx context.Context, addr net.Addr) (net.Conn, error)
 	if err != nil {
 		return nil, err
 	}
-	conn, err := sess.OpenStreamSync()
+	conn, err := sess.OpenStreamSync(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -170,6 +208,49 @@ func (s *scionSocket) dial(ctx context.Context, addr net.Addr) (net.Conn, error)
 		sess.LocalAddr,
 		sess.RemoteAddr,
 	}, nil
+}
+
+func listenScionUDP(address *snet.UDPAddr) (s socket, err error) {
+	/*if err := scion_torrent.InitScion(address.IA); err != nil {
+		return nil, err
+	}*/
+	if err := scion_torrent.InitSQUICCerts(); err != nil {
+		return nil, err
+	}
+	/*laddr, err := net.ResolveUDPAddr("udp", address.String())
+	if err != nil {
+		return nil, err
+	}*/
+
+	udpAddr, err := net.ResolveUDPAddr("udp", address.Host.String())
+	if err != nil {
+		return nil, err
+	}
+	conn, err := net.ListenUDP("udp", udpAddr)
+	conn.SetReadBuffer(425984)
+	conn.SetWriteBuffer(425984)
+	if err != nil {
+		return nil, err
+	}
+
+	// conn, err := appnet.ListenPort(uint16(42425)) //squic.ListenSCION(nil, address, &quic.Config{KeepAlive: true})
+	if err != nil {
+		return nil, err
+	}
+
+	// conn = net.UDPConn(*conn)
+
+	qConn, err := quic.Listen(conn, scion_torrent.TLSCfg, &quic.Config{KeepAlive: true})
+	if err != nil {
+		return nil, err
+	}
+
+	// qConn.
+
+	scionSocket := &scionSocket{}
+	scionSocket.q = qConn
+	scionSocket.local = address
+	return scionSocket, nil
 }
 
 func listenScion(address *snet.UDPAddr) (s socket, err error) {
@@ -189,10 +270,15 @@ func listenScion(address *snet.UDPAddr) (s socket, err error) {
 		return nil, err
 	}
 
+	// conn = net.UDPConn(*conn)
+
 	qConn, err := quic.Listen(conn, scion_torrent.TLSCfg, &quic.Config{KeepAlive: true})
 	if err != nil {
 		return nil, err
 	}
+
+	// qConn.
+
 	scionSocket := &scionSocket{}
 	scionSocket.q = qConn
 	scionSocket.local = address

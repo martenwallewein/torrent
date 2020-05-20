@@ -104,9 +104,9 @@ func (cl *Client) LocalPort() (port int) {
 		}
 		if port == 0 {
 			port = _port
-		} else if port != _port {
+		} /* TODO: ADD port mismatch else if port != _port {
 			panic("mismatched ports")
-		}
+		}*/
 		return true
 	})
 	return
