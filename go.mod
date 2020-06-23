@@ -29,16 +29,17 @@ require (
 	github.com/inconshreveable/log15 v0.0.0-20180818164646-67afb5ed74ec // indirect
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/lucas-clemente/aes12 v0.0.0-20171027163421-cd47fb39b79f // indirect
-	github.com/lucas-clemente/quic-go v0.8.0
+	github.com/lucas-clemente/quic-go v0.15.7
 	github.com/lucas-clemente/quic-go-certificates v0.0.0-20160823095156-d2f86524cced // indirect
 	github.com/marten-seemann/qpack v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/mattn/go-sqlite3 v1.10.0
-	github.com/netsec-ethz/scion-apps v0.1.0
+	github.com/netsec-ethz/scion-apps v0.1.1-0.20200513085729-4ed293127be3
 	github.com/pierrec/xxHash v0.1.5 // indirect
 	github.com/pkg/errors v0.8.2-0.20190227000051-27936f6d90f9
 	github.com/prometheus/client_golang v1.2.0 // indirect
 	github.com/scionproto/scion v0.5.0
+	github.com/spf13/afero v1.3.0
 	github.com/stretchr/testify v1.4.0
 	golang.org/x/net v0.0.0-20191105084925-a882066a44e0
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4

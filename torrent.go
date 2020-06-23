@@ -209,15 +209,15 @@ func (t *Torrent) pieceCompleteUncached(piece pieceIndex) storage.Completion {
 
 // There's a connection to that address already.
 func (t *Torrent) addrActive(addr string) bool {
-	if _, ok := t.halfOpen[addr]; ok {
+	/*if _, ok := t.halfOpen[addr]; ok {
 		return true
-	}
-	for c := range t.conns {
+	}*/
+	/*for c := range t.conns {
 		ra := c.remoteAddr
 		if ra.String() == addr {
 			return true
 		}
-	}
+	}*/
 	return false
 }
 
@@ -243,6 +243,7 @@ func (t *Torrent) addPeer(p Peer) {
 			return
 		}
 	}
+	// fmt.Printf("REALLY add peer %s\n", p.addr())
 	if t.peers.Add(p) {
 		torrent.Add("peers replaced", 1)
 	}
@@ -1343,11 +1344,11 @@ func (t *Torrent) consumeDhtAnnouncePeers(pvs <-chan dht.PeersValues) {
 				// Can't do anything with this.
 				continue
 			}
-			t.addPeer(Peer{
+			/*t.addPeer(Peer{
 				IP:     cp.IP[:],
 				Port:   cp.Port,
 				Source: peerSourceDHTGetPeers,
-			})
+			})*/
 		}
 		cl.unlock()
 	}
@@ -1387,6 +1388,7 @@ func (t *Torrent) dhtAnnouncer(s *dht.Server) {
 
 func (t *Torrent) addPeers(peers []Peer) {
 	for _, p := range peers {
+		// fmt.Printf("Add Peer %s\n", p.addr())
 		t.addPeer(p)
 	}
 }

@@ -104,9 +104,9 @@ func (cl *Client) LocalPort() (port int) {
 		}
 		if port == 0 {
 			port = _port
-		} else if port != _port {
+		} /* TODO: ADD port mismatch else if port != _port {
 			panic("mismatched ports")
-		}
+		}*/
 		return true
 	})
 	return
@@ -458,6 +458,7 @@ func (cl *Client) acceptConnections(l net.Listener) {
 				torrent.Add("rejected accepted connections", 1)
 				conn.Close()
 			} else {
+				// TODO DISABLE INCOMING CONNECTIONS
 				go cl.incomingConnection(conn)
 			}
 			remoteAddr := conn.RemoteAddr()
@@ -543,13 +544,13 @@ func (cl *Client) dialFirst(ctx context.Context, addr net.Addr) (res dialResult)
 		cl.eachListener(func(s socket) bool {
 			func() {
 				network := s.Addr().Network()
-				fmt.Println("GOT NETWORK STRING")
-				fmt.Println(parseNetworkString(network))
+				// fmt.Println("GOT NETWORK STRING")
+				// fmt.Println(parseNetworkString(network))
 				if !peerNetworkEnabled(parseNetworkString(network), cl.config) {
 					return
 				}
 				left++
-				//cl.logger.Printf("dialing %s on %s/%s", addr, s.Addr().Network(), s.Addr())
+				// cl.logger.Printf("dialing %s on %s/%s", addr, s.Addr().Network(), s.Addr())
 				go func() {
 					resCh <- dialResult{
 						cl.dialFromSocket(ctx, s, addr),
@@ -631,9 +632,9 @@ func forgettableDialError(err error) bool {
 }
 
 func (cl *Client) noLongerHalfOpen(t *Torrent, addr string) {
-	if _, ok := t.halfOpen[addr]; !ok {
+	/*if _, ok := t.halfOpen[addr]; !ok {
 		panic("invariant broken")
-	}
+	}*/
 	delete(t.halfOpen, addr)
 	t.openNewConns()
 }
@@ -674,7 +675,9 @@ func (cl *Client) establishOutgoingConnEx(t *Torrent, addr net.Addr, obfuscatedH
 		}
 		return nil, errors.New("dial failed")
 	}
+	fmt.Println("GOT SCION CONN")
 	c, err := cl.handshakesConnection(context.Background(), nc, t, obfuscatedHeader, addr)
+	fmt.Println("Handshakred SCION CONN")
 	if err != nil {
 		nc.Close()
 	}
@@ -693,6 +696,7 @@ func (cl *Client) establishOutgoingConn(t *Torrent, addr net.Addr) (c *connectio
 	}
 	//cl.logger.Printf("error establishing connection to %s (obfuscatedHeader=%t): %v", addr, obfuscatedHeaderFirst, err)
 	if cl.config.HeaderObfuscationPolicy.RequirePreferred {
+		fmt.Println("HeaderObfuscationPolicy reached, not opening torrent")
 		// We should have just tried with the preferred header obfuscation. If it was required,
 		// there's nothing else to try.
 		return
@@ -1123,12 +1127,13 @@ func (cl *Client) AddTorrentSpec(spec *TorrentSpec) (t *Torrent, new bool, err e
 			return
 		}
 	}
+
 	cl.lock()
 	defer cl.unlock()
 	if spec.ChunkSize != 0 {
 		t.setChunkSize(pp.Integer(spec.ChunkSize))
 	}
-	t.addTrackers(spec.Trackers)
+	// t.addTrackers(spec.Trackers)
 	if !cl.config.DisableScion {
 		var pp []Peer
 		for _, scionRemote := range cl.config.RemoteScionAddrs {
@@ -1139,9 +1144,44 @@ func (cl *Client) AddTorrentSpec(spec *TorrentSpec) (t *Torrent, new bool, err e
 			fmt.Println("ADD SCION ADDR PEER NETWORK")
 			fmt.Println(scionRemote.Network())
 		}
-		fmt.Println(pp)
 		t.addPeers(pp)
 	}
+
+	if cl.config.TCPOnly {
+		var pp []Peer
+		for _, ta := range cl.config.RemoteTCPAddrs {
+			pp = append(pp, Peer{
+				IP:   ta.IP,
+				Port: ta.Port,
+			})
+			fmt.Println("ADD TCP ADDR PEER NETWORK")
+			fmt.Println(ta.Network())
+		}
+		for _, ta := range pp {
+			fmt.Println(ta.addr())
+		}
+
+		t.addPeers(pp)
+	}
+
+	if cl.config.UDPOnly {
+		var pp []Peer
+		for _, ta := range cl.config.RemoteUDPAddrs {
+			pp = append(pp, Peer{
+				IP:   ta.IP,
+				Port: ta.Port,
+			})
+			fmt.Println("ADD UDP ADDR PEER NETWORK")
+			fmt.Println(pp)
+		}
+		t.addPeers(pp)
+	}
+
+	fmt.Println("PEERS")
+	t.peers.Each(func(peer Peer) {
+		fmt.Println(peer.addr())
+	})
+
 	t.maybeNewConns()
 	return
 }
@@ -1301,11 +1341,11 @@ func (cl *Client) onDHTAnnouncePeer(ih metainfo.Hash, p dht.Peer) {
 	if t == nil {
 		return
 	}
-	t.addPeers([]Peer{{
+	/*t.addPeers([]Peer{{
 		IP:     p.IP,
 		Port:   p.Port,
 		Source: peerSourceDHTAnnouncePeer,
-	}})
+	}})*/
 }
 
 func firstNotNil(ips ...net.IP) net.IP {

@@ -123,7 +123,7 @@ func (me *trackerScraper) announce(event tracker.AnnounceEvent) (ret trackerAnno
 		ret.Err = fmt.Errorf("error announcing: %s", err)
 		return
 	}
-	me.t.AddPeers(Peers(nil).AppendFromTracker(res.Peers))
+	// me.t.AddPeers(Peers(nil).AppendFromTracker(res.Peers))
 	ret.NumPeers = len(res.Peers)
 	ret.Interval = time.Duration(res.Interval) * time.Second
 	return

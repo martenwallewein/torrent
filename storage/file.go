@@ -1,12 +1,14 @@
 package storage
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/anacrolix/missinggo"
 
+	"github.com/anacrolix/torrent/mem"
 	"github.com/anacrolix/torrent/metainfo"
 )
 
@@ -84,7 +86,7 @@ type fileTorrentImpl struct {
 
 func (fts *fileTorrentImpl) Piece(p metainfo.Piece) PieceImpl {
 	// Create a view onto the file-based torrent storage.
-	_io := fileTorrentImplIO{fts}
+	_io := fileTorrentImplIO{fts: fts}
 	// Return the appropriate segments of this.
 	return &filePieceImpl{
 		fts,
@@ -107,9 +109,10 @@ func CreateNativeZeroLengthFiles(info *metainfo.Info, dir string) (err error) {
 			continue
 		}
 		name := filepath.Join(append([]string{dir, info.Name}, fi.Path...)...)
-		os.MkdirAll(filepath.Dir(name), 0777)
+		fmt.Println((filepath.Dir(name)))
+		mem.FS2.MkdirAll(filepath.Dir(name), 0777)
 		var f io.Closer
-		f, err = os.Create(name)
+		f, err = mem.FS2.Create(name)
 		if err != nil {
 			break
 		}
@@ -124,16 +127,18 @@ type fileTorrentImplIO struct {
 }
 
 // Returns EOF on short or missing file.
-func (fst *fileTorrentImplIO) readFileAt(fi metainfo.FileInfo, b []byte, off int64) (n int, err error) {
-	f, err := os.Open(fst.fts.fileInfoName(fi))
+func (fst *fileTorrentImplIO) readFileAt(fi metainfo.FileInfo, b []byte, off int64, fileIndex int) (n int, err error) {
+	f, err := mem.FS2.Open(fst.fts.fileInfoName(fi))
 	if os.IsNotExist(err) {
 		// File missing is treated the same as a short file.
 		err = io.EOF
-		return
+		return 0, err
 	}
 	if err != nil {
-		return
+		return 0, err
 	}
+
+	// fmt.Printf("Reading %d bytes to %s\n", len(b), fst.fts.fileInfoName(fi))
 	defer f.Close()
 	// Limit the read to within the expected bounds of this file.
 	if int64(len(b)) > fi.Length-off {
@@ -154,9 +159,9 @@ func (fst *fileTorrentImplIO) readFileAt(fi metainfo.FileInfo, b []byte, off int
 
 // Only returns EOF at the end of the torrent. Premature EOF is ErrUnexpectedEOF.
 func (fst fileTorrentImplIO) ReadAt(b []byte, off int64) (n int, err error) {
-	for _, fi := range fst.fts.info.UpvertedFiles() {
+	for i, fi := range fst.fts.info.UpvertedFiles() {
 		for off < fi.Length {
-			n1, err1 := fst.readFileAt(fi, b, off)
+			n1, err1 := fst.readFileAt(fi, b, off, i)
 			n += n1
 			off += int64(n1)
 			b = b[n1:]
@@ -192,12 +197,13 @@ func (fst fileTorrentImplIO) WriteAt(p []byte, off int64) (n int, err error) {
 			n1 = int(fi.Length - off)
 		}
 		name := fst.fts.fileInfoName(fi)
-		os.MkdirAll(filepath.Dir(name), 0777)
-		var f *os.File
-		f, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE, 0666)
-		if err != nil {
+		mem.FS2.MkdirAll(filepath.Dir(name), 0777)
+
+		f, err2 := mem.FS2.OpenFile(name, os.O_WRONLY|os.O_CREATE, 0666)
+		if err2 != nil {
 			return
 		}
+		// fmt.Printf("Writing %d bytes to %s\n", len(p), name)
 		n1, err = f.WriteAt(p[:n1], off)
 		// TODO: On some systems, write errors can be delayed until the Close.
 		f.Close()

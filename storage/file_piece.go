@@ -3,8 +3,8 @@ package storage
 import (
 	"io"
 	"log"
-	"os"
 
+	"github.com/anacrolix/torrent/mem"
 	"github.com/anacrolix/torrent/metainfo"
 )
 
@@ -31,7 +31,7 @@ func (fs *filePieceImpl) Completion() Completion {
 	// If it's allegedly complete, check that its constituent files have the
 	// necessary length.
 	for _, fi := range extentCompleteRequiredLengths(fs.p.Info, fs.p.Offset(), fs.p.Length()) {
-		s, err := os.Stat(fs.fileInfoName(fi))
+		s, err := mem.FS.Stat(fs.fileInfoName(fi))
 		if err != nil || s.Size() < fi.Length {
 			c.Complete = false
 			break

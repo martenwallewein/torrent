@@ -9,8 +9,8 @@ import (
 
 const (
 	pieceHash        = crypto.SHA1
-	maxRequests      = 250    // Maximum pending requests we allow peers to send us.
-	defaultChunkSize = 0x4000 // 16KiB
+	maxRequests      = 250    // TODO: default 250 Maximum pending requests we allow peers to send us.
+	defaultChunkSize = 0x4000 // TODO: 0x400 default 16KiB
 )
 
 // These are our extended message IDs. Peers will use these values to

@@ -159,11 +159,11 @@ func announceHTTP(opt Announce, _url *url.URL) (ret AnnounceResponse, err error)
 	if len(trackerResponse.Peers6) != 0 {
 		vars.Add("http responses with nonempty peers6 key", 1)
 	}
-	for _, na := range trackerResponse.Peers6 {
+	/*for _, na := range trackerResponse.Peers6 {
 		ret.Peers = append(ret.Peers, Peer{
 			IP:   na.IP,
 			Port: na.Port,
 		})
-	}
+	}*/
 	return
 }
