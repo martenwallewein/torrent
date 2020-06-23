@@ -403,8 +403,8 @@ func (cn *connection) nominalMaxRequests() (ret int) {
 	return int(clamp(
 		1,
 		int64(cn.PeerMaxRequests),
-		max(64,
-			cn.stats.ChunksReadUseful.Int64()-(cn.stats.ChunksRead.Int64()-cn.stats.ChunksReadUseful.Int64()))))
+		128)) // max(64, // TODO: 64
+	// 		cn.stats.ChunksReadUseful.Int64()-(cn.stats.ChunksRead.Int64()-cn.stats.ChunksReadUseful.Int64()))))
 }
 
 func (cn *connection) totalExpectingTime() (ret time.Duration) {
@@ -563,6 +563,8 @@ func (cn *connection) fillWriteBuffer(msg func(pp.Message) bool) {
 					filledBuffer = true
 					return false
 				}
+				// nomRequests :=
+				// log.Printf("NominalMaxRequests: %d\n", nomRequests)
 				if len(cn.requests) >= cn.nominalMaxRequests() {
 					return false
 				}
@@ -1207,9 +1209,10 @@ func (c *connection) onReadExtendedMsg(id pp.ExtensionNumber, payload []byte) (e
 			c.t.logger.Printf("error parsing extended handshake message %q: %s", payload, err)
 			return errors.Wrap(err, "unmarshalling extended handshake payload")
 		}
-		if d.Reqq != 0 {
-			c.PeerMaxRequests = d.Reqq
-		}
+		// TODO: Reqq
+		// if d.Reqq != 0 {
+		// 	c.PeerMaxRequests = d.Reqq
+		// }
 		c.PeerClientName = d.V
 		if c.PeerExtensionIDs == nil {
 			c.PeerExtensionIDs = make(map[pp.ExtensionName]pp.ExtensionNumber, len(d.M))
@@ -1248,7 +1251,7 @@ func (c *connection) onReadExtendedMsg(id pp.ExtensionNumber, payload []byte) (e
 		var peers Peers
 		peers.AppendFromPex(pexMsg.Added6, pexMsg.Added6Flags)
 		peers.AppendFromPex(pexMsg.Added, pexMsg.AddedFlags)
-		t.addPeers(peers)
+		// t.addPeers(peers)
 		return nil
 	default:
 		return fmt.Errorf("unexpected extended message ID: %v", id)

@@ -152,7 +152,7 @@ func addTorrents(client *torrent.Client) error {
 			return xerrors.Errorf("adding torrent for %q: %w", arg, err)
 		}
 		torrentBar(t)
-		t.AddPeers(func() (ret []torrent.Peer) {
+		/*t.AddPeers(func() (ret []torrent.Peer) {
 			for _, ta := range flags.TestPeer {
 				ret = append(ret, torrent.Peer{
 					IP:   ta.IP,
@@ -160,7 +160,7 @@ func addTorrents(client *torrent.Client) error {
 				})
 			}
 			return
-		}())
+		}())*/
 		go func() {
 			<-t.GotInfo()
 			t.DownloadAll()
@@ -170,29 +170,39 @@ func addTorrents(client *torrent.Client) error {
 }
 
 var flags = struct {
-	Mmap              bool           `help:"memory-map torrent data"`
-	TestPeer          []*net.TCPAddr `help:"addresses of some starting peers"`
-	Seed              bool           `help:"seed after download is complete"`
-	Addr              *net.TCPAddr   `help:"network listen addr"`
-	UploadRate        tagflag.Bytes  `help:"max piece bytes to send per second"`
-	DownloadRate      tagflag.Bytes  `help:"max bytes per second down from peers"`
-	Scion             bool           `help:"Whether to enable a SCION transport"`
-	ScionOnly         bool           `help:"Whether to disable TCP/UDP"`
-	LocalScionAddr    string         `help:"Local SCION address to use"`
-	PeerScionAddrList []string       `help:"List of remote SCION peers to use"`
-	Debug             bool
-	PackedBlocklist   string
-	Stats             *bool
-	PublicIP          net.IP
-	Progress          bool
-	Quiet             bool `help:"discard client logging"`
+	Mmap                  bool           `help:"memory-map torrent data"`
+	TestPeer              []*net.TCPAddr `help:"addresses of some starting peers"`
+	Seed                  bool           `help:"seed after download is complete"`
+	Addr                  *net.TCPAddr   `help:"network listen addr"`
+	UploadRate            tagflag.Bytes  `help:"max piece bytes to send per second"`
+	DownloadRate          tagflag.Bytes  `help:"max bytes per second down from peers"`
+	Scion                 bool           `help:"Whether to enable a SCION transport"`
+	ScionOnly             bool           `help:"Whether to disable TCP/UDP"`
+	TCPOnly               bool           `help:"Whether to disable TCP/UDP"`
+	UDPOnly               bool           `help:"Whether to disable TCP/UDP"`
+	LocalScionAddr        string         `help:"Local SCION address to use"`
+	PeerScionAddrList     []string       `help:"List of remote SCION peers to use"`
+	TCPAddrList           []string       `help:"List of remote TCP/UDP peers to use"`
+	UDPAddrList           []string       `help:"List of remote TCP/UDP peers to use"`
+	Debug                 bool
+	PackedBlocklist       string
+	Stats                 *bool
+	PublicIP              net.IP
+	Progress              bool
+	Quiet                 bool `help:"discard client logging"`
+	MaxConnectionsPerPeer int
+	AllowDuplicatePaths   bool
+	TcpPort               int
 	tagflag.StartPos
 	Torrent []string `arity:"+" help:"torrent file path or magnet uri"`
 }{
-	UploadRate:   -1,
-	DownloadRate: -1,
-	Progress:     true,
-	Scion:        false,
+	UploadRate:            -1,
+	DownloadRate:          -1,
+	Progress:              true,
+	Scion:                 false,
+	MaxConnectionsPerPeer: 1,
+	AllowDuplicatePaths:   false,
+	TcpPort:               42425,
 }
 
 func stdoutAndStderrAreSameFile() bool {
@@ -233,6 +243,12 @@ func mainErr() error {
 	clientConfig.Seed = flags.Seed
 	clientConfig.PublicIp4 = flags.PublicIP
 	clientConfig.PublicIp6 = flags.PublicIP
+	// TODO Remove disableTrackers for Download
+	// clientConfig.DisableTrackers = true
+	clientConfig.DisablePEX = true
+	// clientConfig.NoUpload = true
+	// clientConfig.TorrentPeersHighWater = 1
+
 	if flags.PackedBlocklist != "" {
 		blocklist, err := iplist.MMapPackedFile(flags.PackedBlocklist)
 		if err != nil {
@@ -256,6 +272,18 @@ func mainErr() error {
 	if flags.Quiet {
 		clientConfig.Logger = log.Discard
 	}
+	if flags.AllowDuplicatePaths {
+		clientConfig.AllowDuplicatePaths = true
+	}
+
+	if flags.MaxConnectionsPerPeer > 1 {
+		clientConfig.MaxConnectionsPerPeer = flags.MaxConnectionsPerPeer
+	}
+
+	if flags.TcpPort > 0 {
+		clientConfig.ListenPort = flags.TcpPort
+	}
+
 	if flags.Scion {
 		clientConfig.DisableScion = false
 
@@ -268,26 +296,84 @@ func mainErr() error {
 		var peers []*snet.UDPAddr
 		for _, remote := range flags.PeerScionAddrList {
 			peerAddr, err := snet.ParseUDPAddr(remote)
-			fmt.Println("PEER ADDR NETWORK:")
-			fmt.Println(peerAddr.Network())
 			if err != nil {
-				fmt.Printf("Failed to parse remote scion addr: %v, %v, ignoring", remote, err)
+				fmt.Printf("Failed to parse remote scion addr: %v, %v, ignoring\n", remote, err)
 				continue
 			}
-			peers = append(peers, peerAddr)
+
+			paths, err := torrent.GetPathsFromAddr(addr, peerAddr, !clientConfig.AllowDuplicatePaths)
+			numPaths := len(paths)
+
+			fmt.Printf("Found %d paths to scion peer %s\n", len(paths), remote)
+
+			if len(paths) > clientConfig.MaxConnectionsPerPeer {
+				numPaths = clientConfig.MaxConnectionsPerPeer
+			}
+
+			fmt.Printf("Using %d paths to scion peer %s due to MaxConnectionsPerPeer\n", numPaths, remote)
+
+			for i := 0; i < numPaths; i++ {
+				pathAddr := torrent.ChoosePath(peerAddr, paths[i])
+				fmt.Printf("Using path %s to scion peer %s\n", paths[i], remote)
+				peers = append(peers, pathAddr)
+			}
 		}
+
 		if len(peers) == 0 {
 			fmt.Printf("Warning: Scion was enabled, but no valid remote address was given\n")
 		}
+
 		clientConfig.RemoteScionAddrs = peers
 		clientConfig.DisableAcceptRateLimiting = true
 		clientConfig.DisableTrackers = true
+
 		if flags.ScionOnly {
 			clientConfig.DisableTCP = true
 			clientConfig.DisableUTP = true
 			clientConfig.NoDHT = true
 		}
 	}
+
+	if flags.TCPOnly {
+		clientConfig.DisableScion = true
+		clientConfig.DisableUTP = true
+		clientConfig.NoDHT = true
+		clientConfig.TCPOnly = true
+
+		for _, remote := range flags.TCPAddrList {
+			addr, err := net.ResolveTCPAddr("tcp", remote)
+			if err != nil {
+				fmt.Printf("Failed to parse remote tcp addr: %v, %v, ignoring\n", remote, err)
+				continue
+			}
+
+			clientConfig.RemoteTCPAddrs = append(clientConfig.RemoteTCPAddrs, addr)
+		}
+	}
+
+	fmt.Println(flags.UDPOnly)
+
+	if flags.UDPOnly {
+		clientConfig.DisableScion = true
+		clientConfig.DisableTCP = true
+		clientConfig.NoDHT = true
+		clientConfig.UDPOnly = true
+
+		fmt.Println("UDP ADDRESSES")
+		fmt.Println(flags.UDPAddrList)
+		for _, remote := range flags.UDPAddrList {
+			addr, err := net.ResolveUDPAddr("udp", remote)
+			if err != nil {
+				fmt.Printf("Failed to parse remote udp addr: %v, %v, ignoring\n", remote, err)
+				continue
+			}
+
+			clientConfig.RemoteUDPAddrs = append(clientConfig.RemoteUDPAddrs, addr)
+		}
+	}
+
+	fmt.Println(clientConfig.RemoteUDPAddrs)
+
 	fmt.Println("New Client")
 	client, err := torrent.NewClient(clientConfig)
 	if err != nil {

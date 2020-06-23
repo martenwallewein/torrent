@@ -39,7 +39,7 @@ require (
 	github.com/pkg/errors v0.8.2-0.20190227000051-27936f6d90f9
 	github.com/prometheus/client_golang v1.2.0 // indirect
 	github.com/scionproto/scion v0.5.0
-	github.com/spf13/afero v1.2.2
+	github.com/spf13/afero v1.3.0
 	github.com/stretchr/testify v1.4.0
 	golang.org/x/net v0.0.0-20191105084925-a882066a44e0
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4

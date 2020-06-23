@@ -156,7 +156,7 @@ func (s *scionSocket) dial(ctx context.Context, addr net.Addr) (net.Conn, error)
 	fmt.Println("SNET ADDRESS:")
 	fmt.Println(snetAddr.String())
 	// Copy the snet addr -> To ensure we won't manipulate the old addr by attaching hops/path
-	newAddr := snetAddr.Copy()
+	/*newAddr := snetAddr.Copy()
 
 	if !s.local.IA.Equal(newAddr.IA) {
 
@@ -187,7 +187,7 @@ func (s *scionSocket) dial(ctx context.Context, addr net.Addr) (net.Conn, error)
 		snetAddr.Path.InitOffsets()
 		snetAddr.NextHop = argMinPath.OverlayNextHop()
 		// get a connection object using that path:
-	}
+	}*/
 	fmt.Println("DIAL ADDR")
 	fmt.Println(addr.String())
 	sess, err := appquic.DialAddrEarly(snetAddr, "127.0.0.1:42425", scion_torrent.TLSCfg, &quic.Config{
